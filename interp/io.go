@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/benhoyt/goawk/internal/ast"
-	. "github.com/benhoyt/goawk/lexer"
+	. "github.com/ktye/awk/internal/ast"
+	. "github.com/ktye/awk/lexer"
 )
 
 // Print a line of output followed by a newline

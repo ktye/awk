@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/benhoyt/goawk/interp"
-	"github.com/benhoyt/goawk/parser"
+	"github.com/ktye/awk/interp"
+	"github.com/ktye/awk/parser"
 )
 
 func Example() {

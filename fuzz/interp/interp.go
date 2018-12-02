@@ -4,7 +4,8 @@ package fuzz
 
 import (
 	"bytes"
-	"github.com/benhoyt/goawk/interp"
+
+	"github.com/ktye/awk/interp"
 )
 
 func Fuzz(data []byte) int {

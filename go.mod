@@ -1,1 +1,1 @@
-module github.com/benhoyt/goawk
+module github.com/ktye/awk

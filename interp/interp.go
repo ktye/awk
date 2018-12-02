@@ -22,9 +22,9 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/benhoyt/goawk/internal/ast"
-	. "github.com/benhoyt/goawk/lexer"
-	. "github.com/benhoyt/goawk/parser"
+	. "github.com/ktye/awk/internal/ast"
+	. "github.com/ktye/awk/lexer"
+	. "github.com/ktye/awk/parser"
 )
 
 var (
