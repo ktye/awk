@@ -4,7 +4,7 @@ package interp
 
 import (
 	"fmt"
-	"math"
+	"math/cmplx"
 	"strconv"
 	"strings"
 )
@@ -19,14 +19,14 @@ const (
 
 // An AWK value (these are passed around by value)
 type value struct {
-	typ      valueType // Value type
-	isNumStr bool      // An AWK "numeric string" from user input
-	s        string    // String value (for typeStr)
-	n        float64   // Numeric value (for typeNum and numeric strings)
+	typ      valueType  // Value type
+	isNumStr bool       // An AWK "numeric string" from user input
+	s        string     // String value (for typeStr)
+	n        complex128 // Numeric value (for typeNum and numeric strings)
 }
 
 // Create a new number value
-func num(n float64) value {
+func num(n complex128) value {
 	return value{typ: typeNum, n: n}
 }
 
@@ -38,8 +38,9 @@ func str(s string) value {
 // Create a new value for a "numeric string" context, converting the
 // string to a number if possible.
 func numStr(s string) value {
+	// TODO parse complex
 	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
-	return value{typ: typeStr, isNumStr: err == nil, s: s, n: f}
+	return value{typ: typeStr, isNumStr: err == nil, s: s, n: complex(f, 0)}
 }
 
 // Create a numeric value from a Go bool
@@ -54,6 +55,11 @@ func boolean(b bool) value {
 // string")
 func (v value) isTrueStr() bool {
 	return v.typ == typeStr && !v.isNumStr
+}
+
+// Return true if number has no imag part.
+func (v value) isReal() bool {
+	return imag(v.n) == 0
 }
 
 // Return Go bool value of AWK value. For numbers or numeric strings,
@@ -73,16 +79,12 @@ func (v value) boolean() bool {
 func (v value) str(floatFormat string) string {
 	switch v.typ {
 	case typeNum:
-		if math.IsNaN(v.n) {
+		if cmplx.IsNaN(v.n) {
 			return "nan"
-		} else if math.IsInf(v.n, 0) {
-			if v.n < 0 {
-				return "-inf"
-			} else {
-				return "inf"
-			}
-		} else if v.n == float64(int(v.n)) {
-			return strconv.Itoa(int(v.n))
+		} else if cmplx.IsInf(v.n) {
+			return "inf" // ignore -inf for real numbers
+		} else if v.n == complex(float64(int(real(v.n))), 0) {
+			return strconv.Itoa(int(real(v.n)))
 		} else {
 			return fmt.Sprintf(floatFormat, v.n)
 		}
@@ -94,14 +96,14 @@ func (v value) str(floatFormat string) string {
 }
 
 // Return value's number value, converting from string if necessary
-func (v value) num() float64 {
+func (v value) num() complex128 {
 	f, _ := v.numChecked()
 	return f
 }
 
 // Return value's number value and a success flag, converting from a
 // string if necessary
-func (v value) numChecked() (float64, bool) {
+func (v value) numChecked() (complex128, bool) {
 	switch v.typ {
 	case typeNum:
 		return v.n, true
@@ -120,7 +122,7 @@ func (v value) numChecked() (float64, bool) {
 
 // Like strconv.ParseFloat, but parses at the start of string and
 // allows things like "1.5foo"
-func parseFloatPrefix(s string) (float64, bool) {
+func parseFloatPrefix(s string) (complex128, bool) {
 	// Skip whitespace at start
 	i := 0
 	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
@@ -163,7 +165,9 @@ func parseFloatPrefix(s string) (float64, bool) {
 		}
 	}
 
+	// TODO parse complex
+
 	floatStr := s[start:end]
 	f, err := strconv.ParseFloat(floatStr, 64)
-	return f, err == nil // May be "value out of range" error
+	return complex(f, 0), err == nil // May be "value out of range" error
 }

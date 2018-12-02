@@ -150,7 +150,7 @@ func (e *CondExpr) String() string {
 
 // Literal number like 1234.
 type NumExpr struct {
-	Value float64
+	Value complex128
 }
 
 func (e *NumExpr) String() string {

@@ -673,8 +673,9 @@ func (p *parser) primary() Expr {
 		// AWK allows forms like "1.5e", but ParseFloat doesn't
 		s := strings.TrimRight(p.val, "eE")
 		n, _ := strconv.ParseFloat(s, 64)
+		// TODO parse complex numbers, change scanner.
 		p.next()
-		return &NumExpr{n}
+		return &NumExpr{complex(n, 0)}
 	case STRING:
 		s := p.val
 		p.next()

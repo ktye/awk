@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/cmplx"
 	"os/exec"
 	"reflect"
 	"sort"
@@ -46,7 +47,7 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		if err != nil {
 			return value{}, err
 		}
-		return num(float64(n)), nil
+		return num(complex(float64(n), 0)), nil
 
 	case F_SUB, F_GSUB:
 		regexValue, err := p.eval(argExprs[0])
@@ -81,7 +82,7 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		} else {
 			p.setLine(out)
 		}
-		return num(float64(n)), nil
+		return num(complex(float64(n), 0)), nil
 	}
 
 	// Now evaluate the argExprs (calls with up to 7 args don't
@@ -100,9 +101,9 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 	case F_LENGTH:
 		switch len(args) {
 		case 0:
-			return num(float64(len(p.line))), nil
+			return num(complex(float64(len(p.line)), 0)), nil
 		default:
-			return num(float64(len(p.toString(args[0])))), nil
+			return num(complex(float64(len(p.toString(args[0]))), 0)), nil
 		}
 
 	case F_MATCH:
@@ -118,11 +119,11 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		}
 		p.matchStart = loc[0] + 1
 		p.matchLength = loc[1] - loc[0]
-		return num(float64(p.matchStart)), nil
+		return num(complex(float64(p.matchStart), 0)), nil
 
 	case F_SUBSTR:
 		s := p.toString(args[0])
-		pos := int(args[1].num())
+		pos := int(real(args[1].num()))
 		if pos > len(s) {
 			pos = len(s) + 1
 		}
@@ -132,7 +133,7 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		maxLength := len(s) - pos + 1
 		length := maxLength
 		if len(args) == 3 {
-			length = int(args[2].num())
+			length = int(real(args[2].num()))
 			if length < 0 {
 				length = 0
 			}
@@ -152,7 +153,7 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 	case F_INDEX:
 		s := p.toString(args[0])
 		substr := p.toString(args[1])
-		return num(float64(strings.Index(s, substr) + 1)), nil
+		return num(complex(float64(strings.Index(s, substr)+1), 0)), nil
 
 	case F_TOLOWER:
 		return str(strings.ToLower(p.toString(args[0]))), nil
@@ -160,21 +161,27 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		return str(strings.ToUpper(p.toString(args[0]))), nil
 
 	case F_ATAN2:
-		return num(math.Atan2(args[0].num(), args[1].num())), nil
+		l, r := args[0], args[1]
+		if l.isReal() && r.isReal() {
+			return num(complex(math.Atan2(real(args[0].num()), real(args[1].num())), 0)), nil
+		} else {
+			return num(-1), fmt.Errorf("atan2 is not defined for complex numbers")
+		}
 	case F_COS:
-		return num(math.Cos(args[0].num())), nil
+		return num(cmplx.Cos(args[0].num())), nil
 	case F_EXP:
-		return num(math.Exp(args[0].num())), nil
+		return num(cmplx.Exp(args[0].num())), nil
 	case F_INT:
-		return num(float64(int(args[0].num()))), nil
+		return num(complex(float64(int(real(args[0].num()))), 0)), nil
 	case F_LOG:
-		return num(math.Log(args[0].num())), nil
+		return num(cmplx.Log(args[0].num())), nil
 	case F_SQRT:
-		return num(math.Sqrt(args[0].num())), nil
+		return num(cmplx.Sqrt(args[0].num())), nil
 	case F_RAND:
-		return num(p.random.Float64()), nil
+		// Should we returns a random imag part?
+		return num(complex(p.random.Float64(), 0)), nil
 	case F_SIN:
-		return num(math.Sin(args[0].num())), nil
+		return num(cmplx.Sin(args[0].num())), nil
 
 	case F_SRAND:
 		prevSeed := p.randSeed
@@ -182,10 +189,10 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		case 0:
 			p.random.Seed(time.Now().UnixNano())
 		case 1:
-			p.randSeed = args[0].num()
+			p.randSeed = real(args[0].num())
 			p.random.Seed(int64(math.Float64bits(p.randSeed)))
 		}
-		return num(prevSeed), nil
+		return num(complex(prevSeed, 0)), nil
 
 	case F_SYSTEM:
 		cmdline := p.toString(args[0])
@@ -213,7 +220,7 @@ func (p *interp) callBuiltin(op Token, argExprs []Expr) (value, error) {
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
-					return num(float64(status.ExitStatus())), nil
+					return num(complex(float64(status.ExitStatus()), 0)), nil
 				} else {
 					fmt.Fprintf(p.errorOutput, "couldn't get exit status for %q: %v\n", cmdline, err)
 					return num(-1), nil
@@ -364,28 +371,30 @@ func (p *interp) toNative(v value, typ reflect.Type) reflect.Value {
 	case reflect.Bool:
 		return reflect.ValueOf(v.boolean())
 	case reflect.Int:
-		return reflect.ValueOf(int(v.num()))
+		return reflect.ValueOf(int(real(v.num())))
 	case reflect.Int8:
-		return reflect.ValueOf(int8(v.num()))
+		return reflect.ValueOf(int8(real(v.num())))
 	case reflect.Int16:
-		return reflect.ValueOf(int16(v.num()))
+		return reflect.ValueOf(int16(real(v.num())))
 	case reflect.Int32:
-		return reflect.ValueOf(int32(v.num()))
+		return reflect.ValueOf(int32(real(v.num())))
 	case reflect.Int64:
-		return reflect.ValueOf(int64(v.num()))
+		return reflect.ValueOf(int64(real(v.num())))
 	case reflect.Uint:
-		return reflect.ValueOf(uint(v.num()))
+		return reflect.ValueOf(uint(real(v.num())))
 	case reflect.Uint8:
-		return reflect.ValueOf(uint8(v.num()))
+		return reflect.ValueOf(uint8(real(v.num())))
 	case reflect.Uint16:
-		return reflect.ValueOf(uint16(v.num()))
+		return reflect.ValueOf(uint16(real(v.num())))
 	case reflect.Uint32:
-		return reflect.ValueOf(uint32(v.num()))
+		return reflect.ValueOf(uint32(real(v.num())))
 	case reflect.Uint64:
-		return reflect.ValueOf(uint64(v.num()))
+		return reflect.ValueOf(uint64(real(v.num())))
 	case reflect.Float32:
-		return reflect.ValueOf(float32(v.num()))
+		return reflect.ValueOf(float32(real(v.num())))
 	case reflect.Float64:
+		return reflect.ValueOf(real(v.num()))
+	case reflect.Complex128:
 		return reflect.ValueOf(v.num())
 	case reflect.String:
 		return reflect.ValueOf(p.toString(v))
@@ -407,11 +416,13 @@ func fromNative(v reflect.Value) value {
 	case reflect.Bool:
 		return boolean(v.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return num(float64(v.Int()))
+		return num(complex(float64(v.Int()), 0))
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return num(float64(v.Uint()))
+		return num(complex(float64(v.Uint()), 0))
 	case reflect.Float32, reflect.Float64:
-		return num(v.Float())
+		return num(complex(v.Float(), 0))
+	case reflect.Complex128:
+		return num(v.Complex())
 	case reflect.String:
 		return str(v.String())
 	case reflect.Slice:
@@ -673,11 +684,11 @@ func (p *interp) sprintf(format string, args []value) (string, error) {
 		case 's':
 			v = p.toString(a)
 		case 'd':
-			v = int(a.num())
+			v = int(real(a.num()))
 		case 'f':
 			v = a.num()
 		case 'u':
-			v = uint32(a.num())
+			v = uint32(real(a.num()))
 		case 'c':
 			var c []byte
 			if a.isTrueStr() {
@@ -690,7 +701,7 @@ func (p *interp) sprintf(format string, args []value) (string, error) {
 			} else {
 				// Follow the behaviour of awk and mawk, where %c
 				// operates on bytes (0-255), not Unicode codepoints
-				c = []byte{byte(a.num())}
+				c = []byte{byte(real(a.num()))}
 			}
 			v = c
 		}

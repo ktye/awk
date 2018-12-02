@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/cmplx"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -584,7 +585,7 @@ func (p *interp) execute(stmt Stmt) error {
 			if err != nil {
 				return err
 			}
-			p.exitStatus = int(status.num())
+			p.exitStatus = int(real(status.num()))
 		}
 		// Return special errExit value "caught" by top-level executor
 		return errExit
@@ -630,7 +631,7 @@ func (p *interp) eval(expr Expr) (value, error) {
 		if !ok {
 			return value{}, newError("field index not a number: %q", p.toString(index))
 		}
-		return p.getField(int(indexNum))
+		return p.getField(int(real(indexNum)))
 
 	case *VarExpr:
 		// Variable read expression (scope is global, local, or special)
@@ -690,7 +691,7 @@ func (p *interp) eval(expr Expr) (value, error) {
 
 		// Then convert to number and increment or decrement
 		exprNum := exprValue.num()
-		var incr float64
+		var incr complex128
 		if e.Op == INCR {
 			incr = exprNum + 1
 		} else {
@@ -874,7 +875,7 @@ func (p *interp) evalForAugAssign(expr Expr) (v value, arrayIndex string, fieldI
 		if !ok {
 			return value{}, "", 0, newError("field index not a number: %q", p.toString(index))
 		}
-		fieldIndex = int(indexNum)
+		fieldIndex = int(real(indexNum))
 		v, err = p.getField(fieldIndex)
 		if err != nil {
 			return value{}, "", 0, err
@@ -905,17 +906,17 @@ func (p *interp) getVar(scope VarScope, index int) value {
 	default: // ScopeSpecial
 		switch index {
 		case V_NF:
-			return num(float64(p.numFields))
+			return num(complex(float64(p.numFields), 0))
 		case V_NR:
-			return num(float64(p.lineNum))
+			return num(complex(float64(p.lineNum), 0))
 		case V_RLENGTH:
-			return num(float64(p.matchLength))
+			return num(complex(float64(p.matchLength), 0))
 		case V_RSTART:
-			return num(float64(p.matchStart))
+			return num(complex(float64(p.matchStart), 0))
 		case V_FNR:
-			return num(float64(p.fileLineNum))
+			return num(complex(float64(p.fileLineNum), 0))
 		case V_ARGC:
-			return num(float64(p.argc))
+			return num(complex(float64(p.argc), 0))
 		case V_CONVFMT:
 			return str(p.convertFormat)
 		case V_FILENAME:
@@ -964,7 +965,7 @@ func (p *interp) setVar(scope VarScope, index int, v value) error {
 	default: // ScopeSpecial
 		switch index {
 		case V_NF:
-			numFields := int(v.num())
+			numFields := int(real(v.num()))
 			if numFields < 0 {
 				return newError("NF set to negative value: %d", numFields)
 			}
@@ -980,15 +981,15 @@ func (p *interp) setVar(scope VarScope, index int, v value) error {
 			}
 			p.line = strings.Join(p.fields, p.outputFieldSep)
 		case V_NR:
-			p.lineNum = int(v.num())
+			p.lineNum = int(real(v.num()))
 		case V_RLENGTH:
-			p.matchLength = int(v.num())
+			p.matchLength = int(real(v.num()))
 		case V_RSTART:
-			p.matchStart = int(v.num())
+			p.matchStart = int(real(v.num()))
 		case V_FNR:
-			p.fileLineNum = int(v.num())
+			p.fileLineNum = int(real(v.num()))
 		case V_ARGC:
-			p.argc = int(v.num())
+			p.argc = int(real(v.num()))
 		case V_CONVFMT:
 			p.convertFormat = p.toString(v)
 		case V_FILENAME:
@@ -1122,14 +1123,18 @@ func (p *interp) evalBinary(op Token, l, r value) (value, error) {
 	case LESS:
 		if l.isTrueStr() || r.isTrueStr() {
 			return boolean(p.toString(l) < p.toString(r)), nil
+		} else if l.isReal() && r.isReal() {
+			return boolean(real(l.n) < real(r.n)), nil
 		} else {
-			return boolean(l.n < r.n), nil
+			return l, fmt.Errorf("cannot compare complex numbers")
 		}
 	case LTE:
 		if l.isTrueStr() || r.isTrueStr() {
 			return boolean(p.toString(l) <= p.toString(r)), nil
+		} else if l.isReal() && r.isReal() {
+			return boolean(real(l.n) <= real(r.n)), nil
 		} else {
-			return boolean(l.n <= r.n), nil
+			return l, fmt.Errorf("cannot compare complex numbers")
 		}
 	case CONCAT:
 		return str(p.toString(l) + p.toString(r)), nil
@@ -1144,14 +1149,18 @@ func (p *interp) evalBinary(op Token, l, r value) (value, error) {
 	case GREATER:
 		if l.isTrueStr() || r.isTrueStr() {
 			return boolean(p.toString(l) > p.toString(r)), nil
+		} else if l.isReal() && r.isReal() {
+			return boolean(real(l.n) > real(r.n)), nil
 		} else {
-			return boolean(l.n > r.n), nil
+			return l, fmt.Errorf("cannot compare complex numbers")
 		}
 	case GTE:
 		if l.isTrueStr() || r.isTrueStr() {
 			return boolean(p.toString(l) >= p.toString(r)), nil
+		} else if l.isReal() && r.isReal() {
+			return boolean(real(l.n) >= real(r.n)), nil
 		} else {
-			return boolean(l.n >= r.n), nil
+			return l, fmt.Errorf("cannot compare complex numbers")
 		}
 	case NOT_EQUALS:
 		if l.isTrueStr() || r.isTrueStr() {
@@ -1174,13 +1183,16 @@ func (p *interp) evalBinary(op Token, l, r value) (value, error) {
 		matched := re.MatchString(p.toString(l))
 		return boolean(!matched), nil
 	case POW:
-		return num(math.Pow(l.num(), r.num())), nil
+		return num(cmplx.Pow(l.num(), r.num())), nil
 	case MOD:
-		rf := r.num()
+		if l.isReal() == false || r.isReal() == false {
+			return value{}, newError("mod is not supported for complex numbers")
+		}
+		rf := real(r.num())
 		if rf == 0.0 {
 			return value{}, newError("division by zero in mod")
 		}
-		return num(math.Mod(l.num(), rf)), nil
+		return num(complex(math.Mod(real(l.num()), rf), 0)), nil
 	default:
 		panic(fmt.Sprintf("unexpected binary operation: %s", op))
 	}
@@ -1221,7 +1233,7 @@ func (p *interp) assign(left Expr, right value) error {
 		if !ok {
 			return newError("field index not a number: %q", p.toString(index))
 		}
-		return p.setField(int(indexNum), p.toString(right))
+		return p.setField(int(real(indexNum)), p.toString(right))
 	}
 	// Shouldn't happen
 	panic(fmt.Sprintf("unexpected lvalue type: %T", left))
