@@ -1,3 +1,11 @@
+# Notes on the fork
+This is a fork of benhoyt/goawk intended as an experiment.
+
+Current changes are:
+- use complex128 as the numeric type instead of float64
+
+Original documentation:
+
 # GoAWK: an AWK interpreter written in Go
 
 [![GoDoc](https://godoc.org/github.com/benhoyt/goawk?status.png)](https://godoc.org/github.com/benhoyt/goawk)
