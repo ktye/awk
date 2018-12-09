@@ -104,10 +104,16 @@ func main() {
 		args = args[1:]
 	}
 
+	// Register extra functions.
+	funcs := map[string]interface{}{
+		"apl": startApl(),
+	}
+
 	// Parse source code and setup interpreter
 	parserConfig := &parser.ParserConfig{
 		DebugTypes:  *debugTypes,
 		DebugWriter: os.Stderr,
+		Funcs:       funcs,
 	}
 	prog, err := parser.ParseProgram(src, parserConfig)
 	if err != nil {
@@ -124,6 +130,7 @@ func main() {
 		Argv0: filepath.Base(os.Args[0]),
 		Args:  args,
 		Vars:  []string{"FS", *fieldSep},
+		Funcs: funcs,
 	}
 	for _, v := range vars {
 		parts := strings.SplitN(v, "=", 2)

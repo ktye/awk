@@ -3,6 +3,7 @@ This is a fork of benhoyt/goawk intended as an experiment.
 
 Current changes are:
 - use complex128 as the numeric type instead of float64
+- execute APL expressions `echo 1 2 3 | ./awk '{print(apl("+/" $0))}'`
 
 Original documentation:
 

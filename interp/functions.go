@@ -535,6 +535,8 @@ func validNativeType(typ reflect.Type) bool {
 		return true
 	case reflect.Float32, reflect.Float64:
 		return true
+	case reflect.Complex128:
+		return true
 	case reflect.String:
 		return true
 	case reflect.Slice:
