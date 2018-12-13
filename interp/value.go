@@ -4,6 +4,7 @@ package interp
 
 import (
 	"fmt"
+	"math"
 	"math/cmplx"
 	"strconv"
 	"strings"
@@ -38,9 +39,39 @@ func str(s string) value {
 // Create a new value for a "numeric string" context, converting the
 // string to a number if possible.
 func numStr(s string) value {
-	// TODO parse complex
-	f, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
-	return value{typ: typeStr, isNumStr: err == nil, s: s, n: complex(f, 0)}
+	f, ok := parseComplex(strings.TrimSpace(s))
+	return value{typ: typeStr, isNumStr: ok, s: s, n: f}
+}
+
+// parseComplex parses a complex number in the form magnitude@angle, where
+// the angle is given in degree. E.g: 10.234@92.5
+func parseComplex(s string) (complex128, bool) {
+	idx := strings.Index(s, "@")
+	if idx == -1 {
+		idx = len(s)
+	}
+	mag, err := strconv.ParseFloat(s[:idx], 64)
+	if err != nil {
+		return 0, false
+	}
+	deg := 0.0
+	if idx < len(s) {
+		deg, err = strconv.ParseFloat(s[idx+1:], 64)
+		if err != nil {
+			return 0, false
+		}
+	}
+	switch deg {
+	case 0:
+		return complex(mag, 0), true
+	case 90:
+		return complex(0, mag), true
+	case 180:
+		return complex(-mag, 0), true
+	case 270:
+		return complex(0, -mag), true
+	}
+	return cmplx.Rect(mag, deg/180.0*math.Pi), true
 }
 
 // Create a numeric value from a Go bool
