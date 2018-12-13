@@ -116,8 +116,14 @@ func (v value) str(floatFormat string) string {
 			return "inf" // ignore -inf for real numbers
 		} else if v.n == complex(float64(int(real(v.n))), 0) {
 			return strconv.Itoa(int(real(v.n)))
-		} else {
+		} else if v.isReal() {
 			return fmt.Sprintf(floatFormat, v.n)
+		} else {
+			deg := cmplx.Phase(v.n) / math.Pi * 180.0
+			if deg < 0 {
+				deg += 360
+			}
+			return fmt.Sprintf(floatFormat+"@"+floatFormat, cmplx.Abs(v.n), deg)
 		}
 	case typeStr:
 		return v.s
